@@ -205,3 +205,156 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment Variables (IMPORTANT - Contains API Keys!)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+sql_agent_*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Metrics & Monitoring
+metrics.jsonl
+*.jsonl
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Docker
+docker-compose.override.yml
+
+# Langfuse local cache
+.langfuse/
+
+# FAISS indexes (can be regenerated)
+# Uncomment if you want to version control these:
+# *.faiss
+# *.index
+
+# Gradio cache
+gradio_cached_examples/
+
+# Model cache (HuggingFace)
+.cache/
+models/
+
+# User-specific files
+TODO.md
+NOTES.md
+scratch.py
+test_*.py
+
+# Large data files (add specific patterns as needed)
+*.csv
+*.parquet
+*.json
+data/
+datasets/
+
+# Secrets & Credentials
+secrets/
+credentials/
+*.pem
+*.key
+*.crt
+
+# CI/CD
+.github/workflows/*.local.yml
+
+# Documentation builds
+docs/_build/
+site/
+

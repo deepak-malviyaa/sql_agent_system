@@ -12,3 +12,8 @@ class AgentState(TypedDict):
     retry_guidance: Optional[str]  # Agentic guidance for next retry
     retry_strategy: Optional[str]  # Strategy: retry_with_schema, retry_simpler, etc.
     final_answer: str          # Natural language response
+    
+    # Learning features
+    query_id: Optional[int]    # ID in query history database
+    session_id: Optional[str]  # Session identifier for tracking
+    learning_examples: Optional[str]  # Similar past queries for context

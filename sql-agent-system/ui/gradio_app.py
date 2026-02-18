@@ -13,15 +13,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from graph import app
 from utils.metrics import get_metrics_collector, QueryMetrics
+from tools.query_history import get_query_history
 import time
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
 
-# Initialize metrics
+# Initialize metrics and query history
 metrics = get_metrics_collector()
+query_history = get_query_history()
 
-def process_query(question: str, show_sql: bool = True, show_metrics: bool = True):
+def process_query(question: str, show_sql: bool = True, show_metrics: bool = True, session_id: str = None):
     """
     Process a natural language query through the agent system.
     
@@ -34,15 +37,21 @@ def process_query(question: str, show_sql: bool = True, show_metrics: bool = Tru
         Tuple of (answer, sql, metrics_info, error_info)
     """
     if not question or not question.strip():
-        return "Please enter a question.", "", "", ""
+        return "Please enter a question.", "", "", "", "", gr.update(visible=False)
+    
+    # Generate session ID if not provided
+    if not session_id:
+        session_id = str(uuid.uuid4())
     
     start_time = time.time()
+    query_id = None
     
     try:
         inputs = {
             "question": question,
             "retry_count": 0,
-            "error": None
+            "error": None,
+            "session_id": session_id
         }
         
         # Track execution stages
@@ -103,11 +112,29 @@ def process_query(question: str, show_sql: bool = True, show_metrics: bool = Tru
         )
         metrics.log_query(query_metrics)
         
-        return answer, sql_display, metrics_info, error_info
+        # 🧠 LEARNING: Save to query history
+        try:
+            query_id = query_history.save_query(
+                question=question,
+                generated_sql=generated_sql,
+                success=bool(answer and answer != "No answer generated"),
+                error_message=final_state.get("error") if final_state else None,
+                execution_time_ms=execution_time,
+                row_count=row_count,
+                retry_count=retry_count,
+                session_id=session_id
+            )
+            logger.info(f"Saved query to history: ID {query_id}")
+        except Exception as e:
+            logger.warning(f"Failed to save query history: {e}")
+        
+        # Return with feedback component visible
+        feedback_visible = gr.update(visible=True)
+        return answer, sql_display, metrics_info, error_info, query_id, feedback_visible
         
     except Exception as e:
         logger.error(f"UI query processing failed: {e}", exc_info=True)
-        return f"❌ Error: {str(e)}", "", "", str(e)
+        return f"❌ Error: {str(e)}", "", "", str(e), None, gr.update(visible=False)
 
 def get_session_stats():
     """Get current session statistics"""
@@ -128,6 +155,59 @@ def get_session_stats():
             stats_text += f"- {error}: {count} occurrences\n"
     
     return stats_text
+
+def get_learning_stats():
+    """Get learning system statistics"""
+    try:
+        stats = query_history.get_statistics()
+        
+        learning_text = f"""
+## 🧠 Learning Statistics
+
+### Query History
+- **Total Queries:** {stats.get('total_queries', 0)}
+- **Successful:** {stats.get('successful', 0)}
+- **Failed:** {stats.get('failed', 0)}
+- **Success Rate:** {stats.get('success_rate', 0):.1f}%
+
+### User Feedback
+- **Total Feedback:** {stats.get('total_feedback', 0)}
+- **👍 Thumbs Up:** {stats.get('thumbs_up', 0)}
+- **👎 Thumbs Down:** {stats.get('thumbs_down', 0)}
+- **✏️ Corrections:** {stats.get('corrections', 0)}
+- **Avg Rating:** {stats.get('avg_rating', 0) or 0:.1f}/5.0
+
+The system learns from past queries to improve future responses!
+"""
+        return learning_text
+    except Exception as e:
+        return f"Learning stats unavailable: {e}"
+
+def submit_feedback(query_id: int, feedback_type: str, rating: int = None, 
+                   corrected_sql: str = None, comment: str = None):
+    """Submit user feedback for a query"""
+    if not query_id:
+        return "⚠️ No query to provide feedback for. Please run a query first."
+    
+    try:
+        query_history.add_feedback(
+            query_id=query_id,
+            feedback_type=feedback_type,
+            rating=rating,
+            corrected_sql=corrected_sql if corrected_sql and corrected_sql.strip() else None,
+            comment=comment if comment and comment.strip() else None
+        )
+        
+        feedback_msg = {
+            "thumbs_up": "✅ Thanks! Your positive feedback helps improve the system.",
+            "thumbs_down": "📝 Feedback recorded. We'll work on improving this.",
+            "correction": "🎓 SQL correction saved! The system will learn from this."
+        }
+        
+        return feedback_msg.get(feedback_type, "✅ Feedback submitted!")
+    except Exception as e:
+        logger.error(f"Failed to submit feedback: {e}")
+        return f"❌ Failed to submit feedback: {e}"
 
 def create_ui():
     """Create and configure Gradio interface"""
@@ -186,8 +266,16 @@ def create_ui():
             
             with gr.Column(scale=1):
                 # Stats panel
-                stats_display = gr.Markdown("### Session Stats\nNo queries yet")
+                gr.Markdown("### 📊 Session Stats")
+                stats_display = gr.Markdown("No queries yet")
                 refresh_stats_btn = gr.Button("🔄 Refresh Stats")
+                
+                gr.Markdown("---")
+                
+                # Learning stats panel
+                gr.Markdown("### 🧠 Learning Stats")
+                learning_stats_display = gr.Markdown("No learning data yet")
+                refresh_learning_btn = gr.Button("🔄 Refresh Learning")
         
         # Output section
         with gr.Row():
@@ -208,11 +296,45 @@ def create_ui():
             with gr.Column():
                 error_output = gr.Markdown()
         
+        # 🧠 LEARNING: Feedback Section
+        with gr.Row(visible=False) as feedback_row:
+            with gr.Column():
+                gr.Markdown("### 💬 Rate This Response")
+                gr.Markdown("Help the system learn by providing feedback!")
+                
+                with gr.Row():
+                    thumbs_up_btn = gr.Button("👍 Good Answer", variant="primary")
+                    thumbs_down_btn = gr.Button("👎 Needs Improvement")
+                
+                with gr.Accordion("📝 Provide More Details (Optional)", open=False):
+                    rating_slider = gr.Slider(
+                        minimum=1, maximum=5, step=1, value=3,
+                        label="Rating (1-5 stars)"
+                    )
+                    corrected_sql_input = gr.Textbox(
+                        label="Corrected SQL (if you know the right query)",
+                        placeholder="Paste corrected SQL here...",
+                        lines=3
+                    )
+                    comment_input = gr.Textbox(
+                        label="Additional Comments",
+                        placeholder="What could be improved?",
+                        lines=2
+                    )
+                    submit_correction_btn = gr.Button("📤 Submit Detailed Feedback")
+                
+                feedback_output = gr.Markdown()
+        
+        # Hidden state to track current query ID
+        current_query_id = gr.State(None)
+        current_session_id = gr.State(str(uuid.uuid4()))
+        
         # Event handlers
         submit_btn.click(
             fn=process_query,
-            inputs=[question_input, show_sql, show_metrics],
-            outputs=[answer_output, sql_output, metrics_output, error_output]
+            inputs=[question_input, show_sql, show_metrics, current_session_id],
+            outputs=[answer_output, sql_output, metrics_output, error_output, 
+                    current_query_id, feedback_row]
         )
         
         refresh_stats_btn.click(
@@ -220,9 +342,36 @@ def create_ui():
             outputs=stats_display
         )
         
+        refresh_learning_btn.click(
+            fn=get_learning_stats,
+            outputs=learning_stats_display
+        )
+        
+        # Feedback handlers
+        thumbs_up_btn.click(
+            fn=lambda qid: submit_feedback(qid, "thumbs_up"),
+            inputs=[current_query_id],
+            outputs=feedback_output
+        )
+        
+        thumbs_down_btn.click(
+            fn=lambda qid: submit_feedback(qid, "thumbs_down"),
+            inputs=[current_query_id],
+            outputs=feedback_output
+        )
+        
+        submit_correction_btn.click(
+            fn=lambda qid, rating, sql, comment: submit_feedback(
+                qid, "correction", rating, sql, comment
+            ),
+            inputs=[current_query_id, rating_slider, corrected_sql_input, comment_input],
+            outputs=feedback_output
+        )
+        
         clear_btn.click(
-            fn=lambda: ("", "", "", ""),
-            outputs=[answer_output, sql_output, metrics_output, error_output]
+            fn=lambda: ("", "", "", "", None, gr.update(visible=False), ""),
+            outputs=[answer_output, sql_output, metrics_output, error_output,
+                    current_query_id, feedback_row, feedback_output]
         )
         
         # Footer
@@ -230,7 +379,9 @@ def create_ui():
         ---
         **Powered by:** LangGraph Multi-Agent System | Gemini + Groq | PostgreSQL
         
-        **Features:** Semantic RAG • Self-Healing Retry • Security Validation • Natural Language Output
+        **Features:** Semantic RAG • Self-Healing Retry • Security Validation • 🧠 Learning from Feedback
+        
+        💡 **New:** The system learns from your feedback to improve future responses!
         """)
     
     return demo

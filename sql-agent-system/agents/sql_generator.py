@@ -2,6 +2,7 @@ import re
 from langchain_core.prompts import ChatPromptTemplate
 from config import LLMFactory
 from tools.schema_rag import get_relevant_schema
+from tools.query_history import get_query_history
 
 def clean_sql_output(text: str) -> str:
     """
@@ -40,7 +41,14 @@ def sql_generator_agent(state):
     # Check if we have retry guidance from the retry agent
     retry_guidance = state.get("retry_guidance", "")
     
-    # Enhanced prompt with retry guidance
+    # 🧠 LEARNING FEATURE: Get similar successful queries from history
+    query_history = get_query_history()
+    learning_examples = query_history.get_learning_examples(state["question"], limit=3)
+    
+    if learning_examples:
+        print("   📚 [Learning] Found similar past queries to learn from")
+    
+    # Enhanced prompt with learning examples
     prompt_template = """
     You are a specialized SQL compiler for PostgreSQL. 
     Your ONLY task is to convert the Intent into a SQL query based on the Schema.
@@ -55,6 +63,8 @@ def sql_generator_agent(state):
     {error}
     
     {retry_guidance_section}
+    
+    {learning_examples_section}
     
     STRICT RULES:
     1. Output ONLY the raw SQL code. 
@@ -77,6 +87,17 @@ def sql_generator_agent(state):
     YOU MUST follow this guidance to correct the previous error.
     """
     
+    # Add learning examples section
+    learning_examples_section = ""
+    if learning_examples:
+        learning_examples_section = f"""
+    📚 LEARNING FROM PAST SUCCESSFUL QUERIES:
+    Here are similar questions that were successfully answered:
+    {learning_examples}
+    
+    Use these as reference for style and structure, but adapt to current question.
+    """
+    
     prompt = ChatPromptTemplate.from_template(prompt_template)
     
     chain = prompt | llm
@@ -84,7 +105,8 @@ def sql_generator_agent(state):
         "intent": state["user_intent"],
         "schema": schema,
         "error": state.get("error", ""),
-        "retry_guidance_section": retry_guidance_section
+        "retry_guidance_section": retry_guidance_section,
+        "learning_examples_section": learning_examples_section
     })
     
     # Apply the cleaner function

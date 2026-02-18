@@ -1,0 +1,95 @@
+# Docker Compose for PostgreSQL with pgvector
+# Usage: docker-compose -f docker-compose-pgvector.yml up -d
+
+version: '3.8'
+
+services:
+  postgres:
+    # Use official pgvector image (PostgreSQL 15 + pgvector pre-installed)
+    image: pgvector/pgvector:pg15
+    container_name: postgres_pgvector
+    
+    environment:
+      # Update these with your credentials
+      POSTGRES_USER: user1
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: entegris_db
+      
+      # Optional: Set timezone
+      TZ: America/New_York
+    
+    ports:
+      # Map container port 5432 to host port 5432
+      - "5432:5432"
+    
+    volumes:
+      # Persistent data storage
+      - postgres_data:/var/lib/postgresql/data
+      
+      # Auto-initialize pgvector on first run
+      - ./init-pgvector.sql:/docker-entrypoint-initdb.d/01-init-pgvector.sql
+      
+      # Optional: Custom PostgreSQL config
+      # - ./postgresql.conf:/etc/postgresql/postgresql.conf
+    
+    healthcheck:
+      # Check if PostgreSQL is ready
+      test: ["CMD-SHELL", "pg_isready -U user1 -d entegris_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    
+    networks:
+      - sql_agent_network
+    
+    restart: unless-stopped
+    
+    # Optional: Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+volumes:
+  postgres_data:
+    name: postgres_pgvector_data
+
+networks:
+  sql_agent_network:
+    name: sql_agent_network
+    driver: bridge
+
+# ============================================================================
+# QUICK START COMMANDS:
+# ============================================================================
+# 
+# 1. Start PostgreSQL with pgvector:
+#    docker-compose -f docker-compose-pgvector.yml up -d
+# 
+# 2. Check logs:
+#    docker-compose -f docker-compose-pgvector.yml logs -f
+# 
+# 3. Connect to database:
+#    docker exec -it postgres_pgvector psql -U user1 -d entegris_db
+# 
+# 4. Verify pgvector:
+#    docker exec -it postgres_pgvector psql -U user1 -d entegris_db -c "\dx vector"
+# 
+# 5. Stop container:
+#    docker-compose -f docker-compose-pgvector.yml down
+# 
+# 6. Stop and remove volumes (⚠️ DELETES DATA):
+#    docker-compose -f docker-compose-pgvector.yml down -v
+# 
+# 7. Backup database:
+#    docker exec postgres_pgvector pg_dump -U user1 entegris_db > backup.sql
+# 
+# 8. Restore database:
+#    docker exec -i postgres_pgvector psql -U user1 entegris_db < backup.sql
+# 
+# ============================================================================

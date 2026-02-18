@@ -6,15 +6,164 @@
 
 ---
 
+## ⚠️ SECURITY WARNING
+
+**CRITICAL: Protect Your Credentials**
+
+- ❌ **NEVER commit API keys or tokens to version control**
+- ❌ **NEVER use placeholder credentials in production**
+- ❌ **NEVER share config files containing secrets**
+- ✅ **ALWAYS use environment variables for sensitive data**
+- ✅ **ALWAYS add `.env` files to `.gitignore`**
+- ✅ **ALWAYS use secrets management (Azure Key Vault, AWS Secrets Manager, etc.) in production**
+- ✅ **ALWAYS rotate credentials if exposed**
+
+**All code examples in this guide use placeholder values. Replace them with your actual credentials stored securely in environment variables.**
+
+---
+
 ## Table of Contents
 
 1. [What is MCP?](#what-is-mcp)
-2. [Quick Start](#quick-start)
-3. [Integration Examples](#integration-examples)
-4. [Claude Desktop Integration](#claude-desktop-integration)
-5. [Custom Agent Integration](#custom-agent-integration)
-6. [Langfuse Monitoring](#langfuse-monitoring)
-7. [Troubleshooting](#troubleshooting)
+2. [Security Best Practices](#security-best-practices)
+3. [Quick Start](#quick-start)
+4. [Integration Examples](#integration-examples)
+5. [Claude Desktop Integration](#claude-desktop-integration)
+6. [Custom Agent Integration](#custom-agent-integration)
+7. [Langfuse Monitoring](#langfuse-monitoring)
+8. [Troubleshooting](#troubleshooting)
+
+---
+
+## Security Best Practices
+
+### 1. Environment Variables
+
+**Always use `.env` files for credentials:**
+
+```bash
+# .env (NEVER commit this file)
+GOOGLE_API_KEY=your_actual_key_here
+GROQ_API_KEY=your_actual_key_here
+DATABASE_URL=postgresql://user:password@host:5432/db
+LANGFUSE_PUBLIC_KEY=pk-lf-actual-key
+LANGFUSE_SECRET_KEY=sk-lf-actual-secret
+SLACK_BOT_TOKEN=xoxb-actual-token
+SLACK_APP_TOKEN=xapp-actual-token
+```
+
+**Add to `.gitignore`:**
+
+```gitignore
+# .gitignore
+.env
+.env.local
+.env.*.local
+claude_desktop_config.json
+*.pem
+*.key
+```
+
+### 2. Config Files with Credentials
+
+**For Claude Desktop, use environment variable references:**
+
+```json
+{
+  "mcpServers": {
+    "sql-agent": {
+      "command": "python",
+      "args": ["d:/T2S/sql-agent-system/mcp_server.py"],
+      "env": {
+        "GOOGLE_API_KEY": "${GOOGLE_API_KEY}",
+        "GROQ_API_KEY": "${GROQ_API_KEY}",
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    }
+  }
+}
+```
+
+**Note:** Set these in your system environment variables, not in the config file.
+
+### 3. Production Deployment
+
+**Use secrets management services:**
+
+- **Azure:** Azure Key Vault
+- **AWS:** AWS Secrets Manager
+- **GCP:** Google Secret Manager
+- **HashiCorp:** Vault
+
+**Example with Azure Key Vault:**
+
+```python
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+import os
+
+# Get secrets from Azure Key Vault
+credential = DefaultAzureCredential()
+client = SecretClient(vault_url="https://your-vault.vault.azure.net/", credential=credential)
+
+os.environ["GOOGLE_API_KEY"] = client.get_secret("google-api-key").value
+os.environ["DATABASE_URL"] = client.get_secret("database-url").value
+```
+
+### 4. Code Security
+
+**Avoid dangerous patterns:**
+
+```python
+# ❌ DANGEROUS - Never use eval() on untrusted input
+queries = eval(decomposition.content)
+
+# ✅ SAFE - Use json.loads() instead
+import json
+queries = json.loads(decomposition.content)
+```
+
+**Input validation:**
+
+```python
+# Validate and sanitize all inputs
+def validate_question(question: str) -> str:
+    if not question or len(question) > 1000:
+        raise ValueError("Invalid question length")
+    # Remove potentially dangerous characters
+    return question.strip()
+```
+
+### 5. Network Security
+
+**Use SSL/TLS for database connections:**
+
+```python
+# Use secure connection strings
+DATABASE_URL = "postgresql://user:pass@host:5432/db?sslmode=require"
+```
+
+**Restrict MCP server access:**
+
+```python
+# Only allow localhost connections in development
+# Use VPN or private networks in production
+```
+
+### 6. Credential Rotation
+
+**If credentials are exposed:**
+
+1. ✅ Immediately revoke/rotate the exposed credentials
+2. ✅ Check logs for unauthorized access
+3. ✅ Update all systems with new credentials
+4. ✅ Review security policies
+
+**Regular rotation schedule:**
+
+- API Keys: Every 90 days
+- Database passwords: Every 60 days
+- Service tokens: Every 30 days
 
 ---
 
@@ -61,8 +210,11 @@ Waiting for connections...
 
 ### 2. Test with MCP Inspector
 
+**⚠️ SECURITY NOTE:** Verify package authenticity before installing
+
 ```bash
 # Install MCP inspector (if not already installed)
+# Verify package on npmjs.com first
 npm install -g @modelcontextprotocol/inspector
 
 # Connect to your server
@@ -96,6 +248,8 @@ mcp-inspector python mcp_server.py
 
 #### Step 2: Add MCP Server Config
 
+**⚠️ SECURITY: Use environment variables, not hardcoded credentials**
+
 ```json
 {
   "mcpServers": {
@@ -105,13 +259,32 @@ mcp-inspector python mcp_server.py
         "d:/T2S/sql-agent-system/mcp_server.py"
       ],
       "env": {
-        "GOOGLE_API_KEY": "your_gemini_key",
-        "GROQ_API_KEY": "your_groq_key",
-        "DATABASE_URL": "postgresql://user:pass@localhost:5432/db"
+        "GOOGLE_API_KEY": "${GOOGLE_API_KEY}",
+        "GROQ_API_KEY": "${GROQ_API_KEY}",
+        "DATABASE_URL": "${DATABASE_URL}"
       }
     }
   }
 }
+```
+
+**Set system environment variables:**
+
+```powershell
+# Windows (PowerShell - run as Administrator)
+[System.Environment]::SetEnvironmentVariable('GOOGLE_API_KEY', 'your_actual_key', 'User')
+[System.Environment]::SetEnvironmentVariable('GROQ_API_KEY', 'your_actual_key', 'User')
+[System.Environment]::SetEnvironmentVariable('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db', 'User')
+```
+
+```bash
+# Mac/Linux (add to ~/.bashrc or ~/.zshrc)
+export GOOGLE_API_KEY="your_actual_key"
+export GROQ_API_KEY="your_actual_key"
+export DATABASE_URL="postgresql://user:pass@localhost:5432/db"
+```
+
+**⚠️ NEVER commit this config file if it contains actual credentials!
 ```
 
 #### Step 3: Restart Claude Desktop
@@ -225,7 +398,9 @@ async def research_with_sql_agent(research_question: str):
             Return as JSON array of questions.
             """)
             
-            queries = eval(decomposition.content)  # Parse JSON
+            # ✅ SAFE: Use json.loads instead of eval()
+            import json
+            queries = json.loads(decomposition.content)
             
             # Step 2: Gather data from SQL Agent
             findings = []
@@ -291,13 +466,18 @@ consistent growth trajectory suggesting continued investment opportunity.
 
 ```python
 # slack_bot.py
+import os
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 import asyncio
 from mcp.client import MCPClient
 from mcp.transports.stdio import StdioServerParameters, stdio_client
+from dotenv import load_dotenv
 
-app = App(token="your-bot-token")
+# ✅ SECURITY: Load credentials from .env file
+load_dotenv()
+
+app = App(token=os.getenv("SLACK_BOT_TOKEN"))
 
 async def query_sql_agent(question):
     """Query the SQL Agent MCP server"""
@@ -331,8 +511,13 @@ def handle_query_command(ack, command, respond):
 
 # Start bot
 if __name__ == "__main__":
-    handler = SocketModeHandler(app, "your-app-token")
+    # ✅ SECURITY: Use environment variable
+    handler = SocketModeHandler(app, os.getenv("SLACK_APP_TOKEN"))
     handler.start()
+
+# .env file (NEVER commit this):
+# SLACK_BOT_TOKEN=xoxb-your-actual-token
+# SLACK_APP_TOKEN=xapp-your-actual-token
 ```
 
 **Usage in Slack:**
@@ -476,14 +661,25 @@ class LLMFactory:
 
 ### Step 2: Add Environment Variables
 
+**⚠️ SECURITY: Create `.env` file and add to `.gitignore`**
+
 ```bash
-# .env
-LANGFUSE_PUBLIC_KEY=pk-lf-xxx
-LANGFUSE_SECRET_KEY=sk-lf-xxx
+# .env (NEVER commit this file)
+LANGFUSE_PUBLIC_KEY=pk-lf-your-actual-public-key
+LANGFUSE_SECRET_KEY=sk-lf-your-actual-secret-key
 LANGFUSE_HOST=https://cloud.langfuse.com
 
 # Optional: Tag by interface
 INTERFACE_TYPE=mcp
+```
+
+**Add to `.gitignore`:**
+
+```gitignore
+.env
+.env.local
+*.pem
+*.key
 ```
 
 ### Step 3: Enhanced MCP Server with Langfuse

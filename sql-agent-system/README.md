@@ -15,8 +15,9 @@
 
 ### 🤖 Fully Agentic System
 - 🧠 **LLM-Based Retry Decisions** - Intelligent error analysis, not hardcoded rules
+- � **Learning from Feedback** - Improves from past queries and user corrections
 - 🔌 **MCP Server** - Agent-to-agent communication protocol
-- 🎨 **Web UI (Gradio)** - Modern, interactive interface
+- 🎨 **Web UI (Gradio)** - Modern, interactive interface with feedback collection
 - 🌐 **REST API** - HTTP endpoints for integration
 - 🚀 **4 Launch Modes** - CLI, Web UI, MCP Server, REST API
 
@@ -26,6 +27,7 @@
 - 💬 **Natural Language Output** - LLM-powered business intelligence narratives
 - 🔄 **Self-Healing Retry** - Automatic error recovery with intelligent classification
 - 📊 **Built-in Monitoring** - Metrics tracking, logging, and session analytics
+- 🎓 **Continuous Learning** - Query history with similarity search and user feedback
 
 ### Production-Ready
 - ✅ Real database execution with connection pooling
@@ -46,6 +48,9 @@ pip install -r requirements.txt
 
 # Setup database
 python db_setup.py
+
+# 🆕 Initialize learning system (recommended)
+python setup_learning_system.py
 ```
 
 ### Choose Your Interface
